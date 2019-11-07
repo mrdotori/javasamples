@@ -1,0 +1,87 @@
+<select id="getMissionList" parameterType="hashmap" resultType="hashmap">
+		/* getMissionList */
+		<choose>
+				<when test="all_cnt != null">
+			select count(*) as cnt from 
+				</when>
+				<otherwise>
+			select * from 
+				</otherwise>
+		</choose>
+		(select 
+			<choose>
+				<when test="app == null">
+					a.id as id, pl.id as plo_id, ifnull(b.plo, pl.plo) as plo, a.mission_desc as mission_desc, ifnull(b.hist_desc, '') as hist_desc,
+					a.type as type, ifnull(b.mission_id, 0) as mission_id, ifnull(b.id, 0) as mission_hist_id, ifnull(b.rsv1, 0) as rsv1,
+					ifnull(is_complete, 'N') as is_complete, ifnull(b.status, '') as plo_req_status,
+					unix_timestamp(b.reg_dt) as reg_date_utc, ifnull(b.end_utc, '') as end_utc, a.ord as ord
+				</when>
+				<otherwise>
+					a.id as id, pl.id as plo_id, ifnull(b.plo, pl.plo) as plo,
+					a.app_title as app_title,  ifnull(b.hist_desc, a.app_desc) as app_desc, ifnull(b.id, 0) as mission_hist_id,
+					ifnull(is_complete, 'N') as is_complete, ifnull(b.status, '') as plo_req_status,
+					b.reg_dt as reg_date, a.ord as ord
+				</otherwise>
+			</choose>
+		from
+			(select * from missions where type = 'T' or type = 'G') a
+			join plo_list pl on a.plo_list_id = pl.id
+			left outer join (
+				select a.id, a.plo, mission_id, a.is_complete, a.hist_desc, a.rsv1, c.status, a.reg_dt, unix_timestamp(a.end_date) as end_utc
+				from mission_history a
+					left outer join (
+						select id, status from plo_req_history
+						where pid = #{pid} and domain = #{domain}
+					) c on a.plo_req_hist_id = c.id
+				where pid = #{pid} and domain = #{domain}
+					and (end_date is null or CONVERT_TZ(end_date, @@session.time_zone, '+00:00') >= CONVERT_TZ(now(), @@session.time_zone, '+00:00'))
+			) b on a.id = b.mission_id
+		where 1 = 1
+		<if test="show_type != null">
+			and a.show_type = #{show_type}
+			<if test="show_type == 'P'.toString()">
+				 and (b.status is null or b.status != 'C')
+			</if>
+		</if>
+		union
+		select
+			<choose>
+				<when test="app == null">
+					a.id, pl.id as plo_id, ifnull(b.plo, pl.plo) as plo, mission_desc, ifnull(b.hist_desc, '') as hist_desc,
+					a.type, ifnull(b.mission_id, 0) as mission_id, ifnull(b.id, 0) as mission_hist_id, ifnull(b.rsv1, 0) as rsv1,
+					ifnull(is_complete, 'N') as is_complete, ifnull(b.status, '') as plo_req_status,
+					unix_timestamp(b.reg_dt) as reg_date_utc, ifnull(b.end_utc, '') as end_utc, a.ord
+				</when>
+				<otherwise>
+					a.id as id, pl.id as plo_id, ifnull(b.plo, pl.plo) as plo,
+					a.app_title as app_title, a.app_desc as app_desc, ifnull(b.id, 0) as mission_hist_id,
+					ifnull(is_complete, 'N') as is_complete, ifnull(b.status, '') as plo_req_status,
+					b.reg_dt as reg_date, a.ord as ord
+				</otherwise>
+			</choose>
+		from
+			(select * from missions where type = 'E') a
+			join plo_list pl on a.plo_list_id = pl.id
+			join (
+				select a.id, a.plo, mission_id, a.is_complete, a.hist_desc, a.rsv1, c.status, a.reg_dt, unix_timestamp(a.end_date) as end_utc
+				from mission_history a
+					left outer join (
+						select id, status from plo_req_history
+						where pid = #{pid} and domain = #{domain}
+					) c on a.plo_req_hist_id = c.id
+				where pid = #{pid} and domain = #{domain}
+					and (end_date is null or CONVERT_TZ(end_date, @@session.time_zone, '+00:00') >= CONVERT_TZ(now(), @@session.time_zone, '+00:00'))
+			) b on a.id = b.mission_id
+		where 1 = 1
+		<if test="show_type != null">
+			and a.show_type = #{show_type}
+			<if test="show_type == 'P'.toString()">
+				 and (b.status is null or b.status != 'C')
+			</if>
+		</if>
+		order by ord, id
+		) a
+		<if test="all_cnt == null and limit != null">
+			limit ${start}, ${limit}
+		</if>
+	</select>
